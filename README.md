@@ -1,29 +1,101 @@
 # fission
+
 Working with fission
 
 ## Install and Set Up
-33001  2024-01-03 15:23:03 export FISSION_NAMESPACE="fission"
-33002  2024-01-03 15:23:05 kubectl create namespace $FISSION_NAMESPACE
-33003  2024-01-03 15:23:10 kubectl create -k "github.com/fission/fission/crds/v1?ref=v1.20.0"
-33005  2024-01-03 15:23:25 helm repo add fission-charts https://fission.github.io/fission-charts/
-33007  2024-01-03 15:23:38 helm install --version v1.20.0 --namespace $FISSION_NAMESPACE fission fission-charts/fission-all
-33014  2024-01-03 15:27:04 which fission # How was CLI installed?
-33016  2024-01-03 15:27:16 fission version
-33017  2024-01-03 15:27:31 fission check
+
+- Run `./0-install-server.sh` to install the server
+
+```
+#!/bin/bash
+
+export FISSION_VERSION=v1.21.0
+export FISSION_NAMESPACE="fission"
+kubectl create namespace $FISSION_NAMESPACE
+kubectl create -k "github.com/fission/fission/crds/v1?ref=$FISSION_VERSION"
+helm repo add fission-charts https://fission.github.io/fission-charts/
+helm install --version $FISSION_VERSION --namespace $FISSION_NAMESPACE fission fission-charts/fission-all
+which fission
+fission version
+fission check
+```
+
+## Install the CLI
+
+- Run `./1-install-cli.sh` to install the CLI
+
+```
+#!/bin/bash
+
+export FISSION_VERSION="v1.21.0"
+export BIN_PATH="/usr/local/bin/"
+curl -Lo fission "https://github.com/fission/fission/releases/download/${FISSION_VERSION}/fission-${FISSION_VERSION}-darwin-amd64"
+
+ls -ltr ./fission && chmod +x ./fission
+
+sudo mv ./fission "${BIN_PATH}" && ls -ltr "${BIN_PATH}"/fission
+
+"${BIN_PATH}"/fission version
+```
 
 ## Create Python environment
-33018  2024-01-03 15:27:53 fission env create --name python --image fission/python-env
+
+- Run `./2-create-python-env.sh` to create a Python environment
+
+```
+fission env create --name python --image fission/python-env
+```
 
 ## Hello, World!
-33019  2024-01-03 15:28:02 curl -LO https://raw.githubusercontent.com/fission/examples/main/python/hello.py
-33020  2024-01-03 15:28:10 fission function create --name hello-py --env python --code hello.py
-33021  2024-01-03 15:28:16 fission function test --name hello-py
+
+- Run `./3-run-hello-world.sh` to create a Python function
+
+```
+#!/bin/bash
+
+curl -LO https://raw.githubusercontent.com/fission/examples/main/python/hello.py
+fission function create --name hello-py --env python --code hello.py
+fission function test --name hello-py
+
+```
 
 ## Deploy a Lambda Function
-33036  2024-01-03 15:30:36 fission function create --name index --env python --code index.py
-33041  2024-01-03 15:32:28 fission function update --name index --env python --code index.py
-33042  2024-01-03 15:32:31 fission function test --name index
-33050  2024-01-03 15:37:55 fission route create --url /index --function index
-33051  2024-01-03 15:38:07 fission route list
-33725  2024-01-14 14:12:32 curl http://router.k8s.orb.local/index
 
+- Run `./4-run-api.sh` to deploy a Lambda function
+
+```
+#!/bin/bash
+
+echo "# Create or update the function"
+fission function create \
+    --verbosity=0 \
+    --name api \
+    --env python \
+    --code ./api.py > /dev/null \
+    || echo "# Update the function" &&
+    fission function update \
+    --name api \
+    --env python \
+    --code ./api.py
+
+echo
+echo
+echo "# Test the function by invoking it directly"
+fission function test --name api
+
+echo
+echo
+echo "# Create a route to the function or list the current routes if it already exists"
+fission route create \
+    --name api \
+    --url /api \
+    --function api > /dev/null \
+    || fission route list
+
+echo
+echo
+echo "# Test the route by curling it"
+
+curl -sLk --max-time 3 -w "%{json}" \
+    "http://router.k8s.orb.local/api" | jq .
+```
