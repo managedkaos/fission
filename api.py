@@ -15,3 +15,9 @@ def main():
     }
     response = {"status_code": 201, **data}
     return json.dumps(response), 201
+
+
+if __name__ == "__main__":
+    repsponse, status_code = main()
+    print(f"Status Code: {status_code}")
+    print(f"Response: {repsponse}")
